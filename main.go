@@ -84,6 +84,72 @@ func CreateGraphiteMetrics(samples model.Vector, metricPrefix string) string {
 	return metrics
 }
 
+func CreateGraphiteMetricsWithLabels(samples model.Vector, metricPrefix string) string {
+	metrics := ""
+
+	for _, sample := range samples {
+		metric := fmt.Sprintf("%s%s", metricPrefix, sample.Metric["__name__"])
+
+		for name, value := range sample.Metric {
+			if name != "__name__" {
+				tags := fmt.Sprintf(".%s", value)
+				if !strings.Contains(tags, "\n") && strings.Count(tags, ".") == 1 {
+					metric += tags
+				}
+			}
+		}
+
+		metric = strings.Replace(metric, "\n", "", -1)
+
+		value := strconv.FormatFloat(float64(sample.Value), 'f', -1, 64)
+
+		now := time.Now()
+		timestamp := now.Unix()
+
+		metric += fmt.Sprintf(" %s %d\n", value, timestamp)
+
+		segments := strings.Split(metric, " ")
+		if len(segments) == 3 {
+			metrics += metric
+		}
+	}
+
+	return metrics
+}
+
+func CreateGraphiteMetricsWithTags(samples model.Vector, metricPrefix string) string {
+	metrics := ""
+
+	for _, sample := range samples {
+		metric := fmt.Sprintf("%s%s", metricPrefix, sample.Metric["__name__"])
+
+		for name, value := range sample.Metric {
+			if name != "__name__" {
+				tags := fmt.Sprintf(";%s=%s", name, value)
+				if !strings.Contains(tags, "\n") && strings.Count(tags, "=") == 1 {
+					metric += tags
+				}
+			}
+		}
+
+		metric = strings.Replace(metric, "\n", "", -1)
+
+		value := strconv.FormatFloat(float64(sample.Value), 'f', -1, 64)
+
+		now := time.Now()
+		timestamp := now.Unix()
+
+		metric += fmt.Sprintf(" %s %d\n", value, timestamp)
+
+		segments := strings.Split(metric, " ")
+		if len(segments) == 3 {
+			metrics += metric
+		}
+	}
+
+	return metrics
+}
+
 func CreateInfluxMetrics(samples model.Vector, metricPrefix string) string {
 	metrics := ""
 
@@ -125,6 +191,10 @@ func OutputMetrics(samples model.Vector, outputFormat string, metricPrefix strin
 		output = CreateInfluxMetrics(samples, metricPrefix)
 	case "graphite":
 		output = CreateGraphiteMetrics(samples, metricPrefix)
+	case "graphite_with_labels":
+		output = CreateGraphiteMetricsWithLabels(samples, metricPrefix)
+	case "graphite_with_tags":
+		output = CreateGraphiteMetricsWithTags(samples, metricPrefix)
 	case "json":
 		output = CreateJSONMetrics(samples)
 	}
@@ -238,7 +308,7 @@ func main() {
 	exporterAuthorizationHeader := flag.String("exporter-authorization", "", "Prometheus exporter Authorization header.")
 	promURL := flag.String("prom-url", "http://localhost:9090", "Prometheus API URL.")
 	queryString := flag.String("prom-query", "up", "Prometheus API query string.")
-	outputFormat := flag.String("output-format", "influx", "The check output format to use for metrics {influx|graphite|json}.")
+	outputFormat := flag.String("output-format", "influx", "The check output format to use for metrics {influx|graphite|graphite_with_labels|graphite_with_tags|json}.")
 	metricPrefix := flag.String("metric-prefix", "", "Metric name prefix, only supported by line protocol output formats.")
 	insecureSkipVerify := flag.Bool("insecure-skip-verify", false, "Skip TLS peer verification.")
 	flag.Parse()
